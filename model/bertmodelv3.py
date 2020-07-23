@@ -59,37 +59,39 @@ device1 = torch.device(dev)
 label_field = Field(sequential=False, use_vocab=False, batch_first=True, dtype=torch.float)
 text_field = Field(use_vocab=False, tokenize=tokenizer.encode, lower=False, include_lengths=False, batch_first=True,
                    fix_length=MAX_SEQ_LEN, pad_token=PAD_INDEX, unk_token=UNK_INDEX)
-fields = [('label', label_field), ('text', text_field)]
+fields = [('class_id', label_field), ('tweet', text_field)]
 Path="C:/Users/bensc/Downloads/Hate-Speech-Detection-With-BERT-master/Hate-Speech-Detection-With-BERT-master/data"
-
-Train='labeled_data.csv'
-Validation='labeled_data.csv'
+destination_folder=Path
+Train='labeled_data_bert.csv'
+Validation='bert_test.csv'
 Test='anti_racist_tweets.csv'
 # TabularDataset
 #update the args
 train, valid, test = TabularDataset.splits(path=Path, train=Train, validation=Validation,
-                                           test=Train, format='CSV', fields=fields, skip_header=False)
+                                           test=Train, format='CSV', fields=fields, skip_header=True)
 
 # Iterators
-
-train_iter = BucketIterator(train, batch_size=16, sort_key=lambda x: len(x.text),
+#update this iterator with https://mlexplained.com/2018/02/08/a-comprehensive-tutorial-to-torchtext/
+train_iter = BucketIterator(train, batch_size=16, sort_key=lambda x: len(x.tweet),
                             device=device1, train=True, sort=True, sort_within_batch=True)
-valid_iter = BucketIterator(valid, batch_size=16, sort_key=lambda x: len(x.text),
+valid_iter = BucketIterator(valid, batch_size=16, sort_key=lambda x: len(x.tweet),
                             device=device1, train=True, sort=True, sort_within_batch=True)
 test_iter = Iterator(test, batch_size=16, device=device1, train=False, shuffle=False, sort=False)
-
+print("working")
 """Step 3: Build Model"""
-
+#num_labels=3
 class BERT(nn.Module):
 
     def __init__(self):
+        #self.num_labels=3
         super(BERT, self).__init__()
+        #self.num_labels=3
 
         options_name = "bert-base-uncased"
-        self.encoder = BertForSequenceClassification.from_pretrained(options_name)
+        self.encoder = BertForSequenceClassification.from_pretrained(options_name, num_labels=3)
 
     def forward(self, text, label):
-        loss, text_fea = self.encoder(text, labels=label)[:2]
+        loss, text_fea = self.encoder(text, labels=label)
 
         return loss, text_fea
 
@@ -154,7 +156,7 @@ def train(model,
           criterion = nn.BCELoss(),
           train_loader = train_iter,
           valid_loader = valid_iter,
-          num_epochs = 5,
+          num_epochs = 2,
           eval_every = len(train_iter) // 2,
           file_path = destination_folder,
           best_valid_loss = float("Inf")):
@@ -170,12 +172,14 @@ def train(model,
     # training loop
     model.train()
     for epoch in range(num_epochs):
-        for (labels, title, text, titletext), _ in train_loader:
-            labels = labels.type(torch.LongTensor)
+        for (class_id, tweet), _ in train_loader:
+            #print("Yes")
+            labels = class_id.type(torch.LongTensor)
+           #print(len(labels))
             labels = labels.to(device1)
-            titletext = titletext.type(torch.LongTensor)
-            titletext = titletext.to(device1)
-            output = model(titletext, labels)
+            text = tweet.type(torch.LongTensor)
+            text = text.to(device1)
+            output = model(text, labels)
             loss, _ = output
 
             optimizer.zero_grad()
@@ -192,12 +196,12 @@ def train(model,
                 with torch.no_grad():
 
                     # validation loop
-                    for (labels, title, text, titletext), _ in valid_loader:
+                    for (labels, text), _ in valid_loader:
                         labels = labels.type(torch.LongTensor)
                         labels = labels.to(device1)
-                        titletext = titletext.type(torch.LongTensor)
-                        titletext = titletext.to(device1)
-                        output = model(titletext, labels)
+                        text = text.type(torch.LongTensor)
+                        text = text.to(device1)
+                        output = model(text, labels)
                         loss, _ = output
 
                         valid_running_loss += loss.item()
@@ -227,12 +231,14 @@ def train(model,
 
     save_metrics(file_path + '/' + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
     print('Finished Training!')
-
+print("good before model")
 model = BERT().to(device1)
-optimizer = optim.Adam(model.parameters(), lr=2e-5)
-
+print("issue is with optimizer")
+lr=2e-5
+optimizer = optim.Adam(model.parameters(), lr=lr)
+print("good pre-train")
 train(model=model, optimizer=optimizer)
-
+print("training good")
 train_loss_list, valid_loss_list, global_steps_list = load_metrics(destination_folder + '/metrics.pt')
 plt.plot(global_steps_list, train_loss_list, label='Train')
 plt.plot(global_steps_list, valid_loss_list, label='Valid')
@@ -247,21 +253,23 @@ def evaluate(model, test_loader):
     y_pred = []
     y_true = []
 
+
     model.eval()
     with torch.no_grad():
-        for (labels, title, text, titletext), _ in test_loader:
+        for (labels, text), _ in test_loader:
 
                 labels = labels.type(torch.LongTensor)
                 labels = labels.to(device1)
-                titletext = titletext.type(torch.LongTensor)
-                titletext = titletext.to(device1)
-                output = model(titletext, labels)
+                text = text.type(torch.LongTensor)
+                text = text.to(device1)
+                output = model(text, labels)
 
                 _, output = output
                 y_pred.extend(torch.argmax(output, 1).tolist())
                 y_true.extend(labels.tolist())
 
     print('Classification Report:')
+    print(y_true, y_pred)
     print(classification_report(y_true, y_pred, labels=[1,0], digits=4))
 
     cm = confusion_matrix(y_true, y_pred, labels=[1,0])
@@ -277,7 +285,16 @@ def evaluate(model, test_loader):
     ax.yaxis.set_ticklabels(['FAKE', 'REAL'])
 
 best_model = BERT().to(device1)
-
+print("MOdel Loaded")
 load_checkpoint(destination_folder + '/model.pt', best_model)
-
+print("starting model evaluation")
 evaluate(best_model, test_iter)
+print("done")
+print("testing with outstanding data")
+import csv
+
+with open('anti_racist_tweets.csv', newline='') as f:
+    reader = csv.reader(f)
+    data = list(reader)
+    for tweet in data:
+        print(data[tweet], best_model(tweet))
