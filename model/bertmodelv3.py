@@ -60,7 +60,7 @@ label_field = Field(sequential=False, use_vocab=False, batch_first=True, dtype=t
 text_field = Field(use_vocab=False, tokenize=tokenizer.encode, lower=False, include_lengths=False, batch_first=True,
                    fix_length=MAX_SEQ_LEN, pad_token=PAD_INDEX, unk_token=UNK_INDEX)
 fields = [('class_id', label_field), ('tweet', text_field)]
-Path="C:/Users/bensc/Downloads/Hate-Speech-Detection-With-BERT-master/Hate-Speech-Detection-With-BERT-master/data"
+Path="~Hate-Speech-Detection-With-BERT-master/"
 destination_folder=Path
 Train='labeled_data_bert.csv'
 Validation='bert_test.csv'
@@ -226,10 +226,10 @@ def train(model,
                 # checkpoint
                 if best_valid_loss > average_valid_loss:
                     best_valid_loss = average_valid_loss
-                    save_checkpoint(file_path + '/' + 'model.pt', model, best_valid_loss)
-                    save_metrics(file_path + '/' + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
+                    save_checkpoint(file_path + 'model.pt', model, best_valid_loss)
+                    save_metrics(file_path + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
 
-    save_metrics(file_path + '/' + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
+    save_metrics(file_path + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
     print('Finished Training!')
 print("good before model")
 model = BERT().to(device1)
@@ -239,7 +239,7 @@ optimizer = optim.Adam(model.parameters(), lr=lr)
 print("good pre-train")
 train(model=model, optimizer=optimizer)
 print("training good")
-train_loss_list, valid_loss_list, global_steps_list = load_metrics(destination_folder + '/metrics.pt')
+train_loss_list, valid_loss_list, global_steps_list = load_metrics(destination_folder + 'metrics.pt')
 plt.plot(global_steps_list, train_loss_list, label='Train')
 plt.plot(global_steps_list, valid_loss_list, label='Valid')
 plt.xlabel('Global Steps')
@@ -286,7 +286,7 @@ def evaluate(model, test_loader):
 
 best_model = BERT().to(device1)
 print("MOdel Loaded")
-load_checkpoint(destination_folder + '/model.pt', best_model)
+load_checkpoint(destination_folder + 'model.pt', best_model)
 print("starting model evaluation")
 evaluate(best_model, test_iter)
 print("done")
