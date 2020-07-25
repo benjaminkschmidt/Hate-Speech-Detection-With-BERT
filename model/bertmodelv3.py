@@ -156,7 +156,7 @@ def train(model,
           criterion = nn.BCELoss(),
           train_loader = train_iter,
           valid_loader = valid_iter,
-          num_epochs = 2,
+          num_epochs = 30,
           eval_every = len(train_iter) // 2,
           file_path = destination_folder,
           best_valid_loss = float("Inf")):
