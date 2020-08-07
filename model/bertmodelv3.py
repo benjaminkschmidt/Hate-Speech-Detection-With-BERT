@@ -16,7 +16,7 @@ Import Libraries
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
-
+import csv
 # Preliminaries
 
 from torchtext.data import Field, TabularDataset, BucketIterator, Iterator
@@ -60,15 +60,17 @@ label_field = Field(sequential=False, use_vocab=False, batch_first=True, dtype=t
 text_field = Field(use_vocab=False, tokenize=tokenizer.encode, lower=False, include_lengths=False, batch_first=True,
                    fix_length=MAX_SEQ_LEN, pad_token=PAD_INDEX, unk_token=UNK_INDEX)
 fields = [('class_id', label_field), ('tweet', text_field)]
-Path="~/Hate-Speech-Detection-With-BERT/"
+Path="C:/Users/bensc/Downloads/Hate-Speech-Detection-With-BERT-master/Hate-Speech-Detection-With-BERT-master/data"
 destination_folder=Path
 Train='labeled_data_bert.csv'
 Validation='bert_test.csv'
-Test='anti_racist_tweets.csv'
+Test='bert_test.csv'
+
+#Test='anti_racist_tweets.csv'
 # TabularDataset
 #update the args
 train, valid, test = TabularDataset.splits(path=Path, train=Train, validation=Validation,
-                                           test=Train, format='CSV', fields=fields, skip_header=True)
+                                           test=Test, format='CSV', fields=fields, skip_header=True)
 
 # Iterators
 #update this iterator with https://mlexplained.com/2018/02/08/a-comprehensive-tutorial-to-torchtext/
@@ -156,7 +158,7 @@ def train(model,
           criterion = nn.BCELoss(),
           train_loader = train_iter,
           valid_loader = valid_iter,
-          num_epochs = 30,
+          num_epochs = 2,
           eval_every = len(train_iter) // 2,
           file_path = destination_folder,
           best_valid_loss = float("Inf")):
@@ -226,10 +228,10 @@ def train(model,
                 # checkpoint
                 if best_valid_loss > average_valid_loss:
                     best_valid_loss = average_valid_loss
-                    save_checkpoint('modelgpu.pt', model, best_valid_loss)
-                    save_metrics('metricsgpu.pt', train_loss_list, valid_loss_list, global_steps_list)
+                    save_checkpoint(file_path + '/' + 'model.pt', model, best_valid_loss)
+                    save_metrics(file_path + '/' + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
 
-    save_metrics('metricsgpu.pt', train_loss_list, valid_loss_list, global_steps_list)
+    save_metrics(file_path + '/' + 'metrics.pt', train_loss_list, valid_loss_list, global_steps_list)
     print('Finished Training!')
 print("good before model")
 model = BERT().to(device1)
@@ -239,13 +241,37 @@ optimizer = optim.Adam(model.parameters(), lr=lr)
 print("good pre-train")
 train(model=model, optimizer=optimizer)
 print("training good")
-train_loss_list, valid_loss_list, global_steps_list = load_metrics('metricsgpu.pt')
+train_loss_list, valid_loss_list, global_steps_list = load_metrics(destination_folder + '/metrics.pt')
+from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import confusion_matrix
+
+
+
+def f1_multiclass(labels, preds):
+    return f1_score(labels, preds, average='micro')
+
+def confusion_matrix_cal(labels, pred):
+    return confusion_matrix(labels, pred)
+'''
+print("---------- Results ----------")
+from sklearn.metrics import classification_report
+print(classification_report(test_iter,train_iter))
+result, model_outputs, wrong_predictions, confusion_matrix_kappa = model.eval_model( f1=f1_multiclass, acc=accuracy_score, conf_matrix=confusion_matrix_cal)
+
+print(result)
+print(model_outputs)
+print(wrong_predictions)
+print(confusion_matrix_kappa)
+
 plt.plot(global_steps_list, train_loss_list, label='Train')
 plt.plot(global_steps_list, valid_loss_list, label='Valid')
 plt.xlabel('Global Steps')
 plt.ylabel('Loss')
 plt.legend()
 plt.show()
+'''
+#result, model_outputs, wrong_predictions, confusion_matrix_kappa = model.eval_model(test_df, f1=f1_multiclass, acc=accuracy_score, conf_matrix=confusion_matrix_cal)
+
 
 # Evaluation Function
 
@@ -270,9 +296,9 @@ def evaluate(model, test_loader):
 
     print('Classification Report:')
     print(y_true, y_pred)
-    print(classification_report(y_true, y_pred, labels=[1,0], digits=4))
+    print(classification_report(y_true, y_pred, labels=[0,1,2], digits=4))
 
-    cm = confusion_matrix(y_true, y_pred, labels=[1,0])
+    cm = confusion_matrix(y_true, y_pred, labels=[0,1,2])
     ax= plt.subplot()
     sns.heatmap(cm, annot=True, ax = ax, cmap='Blues', fmt="d")
 
@@ -281,20 +307,16 @@ def evaluate(model, test_loader):
     ax.set_xlabel('Predicted Labels')
     ax.set_ylabel('True Labels')
 
-    ax.xaxis.set_ticklabels(['FAKE', 'REAL'])
-    ax.yaxis.set_ticklabels(['FAKE', 'REAL'])
+    ax.xaxis.set_ticklabels(['Hate', 'Offensive', 'Neither'])
+    ax.yaxis.set_ticklabels(['Hate', 'Offensive', 'Neither'])
 
-best_model = BERT().to(device1)
-print("MOdel Loaded")
-load_checkpoint('modelgpu.pt', best_model)
+#best_model = model.load_state_dict(torch.load(destination_folder+'/model.pt'))
+print("Mdel Loaded")
+#best_model=BERT.to()
+load_checkpoint(destination_folder + '/model.pt', model)
 print("starting model evaluation")
-evaluate(best_model, test_iter)
-print("done")
-print("testing with outstanding data")
-import csv
-
-with open('anti_racist_tweets.csv', newline='') as f:
-    reader = csv.reader(f)
-    data = list(reader)
-    for tweet in data:
-        print(data[tweet], best_model(tweet))
+evaluate(model, test_iter)
+with torch.no_grad():
+    preds=model(valid_iter, test_iter)
+    print(preds)
+print("did it work?")
