@@ -60,7 +60,8 @@ label_field = Field(sequential=False, use_vocab=False, batch_first=True, dtype=t
 text_field = Field(use_vocab=False, tokenize=tokenizer.encode, lower=False, include_lengths=False, batch_first=True,
                    fix_length=MAX_SEQ_LEN, pad_token=PAD_INDEX, unk_token=UNK_INDEX)
 fields = [('class_id', label_field), ('tweet', text_field)]
-Path="C:/Users/bensc/Downloads/Hate-Speech-Detection-With-BERT-master/Hate-Speech-Detection-With-BERT-master/data"
+#Set Path to the local pathway that save the datatsets. 
+Path=LocalPathway
 destination_folder=Path
 Train='labeled_data_bert.csv'
 Validation='bert_test.csv'
@@ -316,7 +317,4 @@ print("Mdel Loaded")
 load_checkpoint(destination_folder + '/model.pt', model)
 print("starting model evaluation")
 evaluate(model, test_iter)
-with torch.no_grad():
-    preds=model(valid_iter, test_iter)
-    print(preds)
-print("did it work?")
+
